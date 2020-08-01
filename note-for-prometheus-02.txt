@@ -1,0 +1,135 @@
+spring boot 集成 prometheus
+文章链接：
+https://www.cnblogs.com/xidianzxm/p/11542135.html
+
+1.prometheus简介
+Prometheus是一套开源的监控&报警&时间序列数据库的组合，基于应用的metrics来进行监控的开源工具 。
+
+2.spring boot的pom依赖
+		<!--增加依赖-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+3.application.yaml or application.properties
+spring: 
+  application:
+    name: springbootPrometheusGrafana
+    
+management:
+  endpoints:
+    web:
+      exposure:
+        include:  '*'
+  metrics:
+    tags:
+       application: ${spring.application.name}
+或
+spring.application.name=springbootPrometheusGrafana
+management.endpoints.web.exposure.include=*
+management.metrics.tags.application=${spring.application.name}
+
+#注意此处使用，访问的时候必须访问/actuator/prometheus,如不配置则访问/prometheus
+management.endpoints.web.base-path=/actuator
+
+
+4.实例化MeterRegistryCustomizer
+@SpringBootApplication
+public class ClientmonitorApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(ClientmonitorApplication.class, args);
+	}
+
+	@Bean
+	MeterRegistryCustomizer<MeterRegistry> configurer(@Value("${spring.application.name}") String applicationName) {
+		return (registry) -> registry.config().commonTags("application", applicationName);
+	}
+}
+
+5.注册metrics
+实现 MeterBinder 接口的 bindTo 方法，将要采集的指标注册到 MeterRegistry
+@Component
+public class JobMetrics implements MeterBinder {
+    public Counter job1Counter;
+    public Counter job2Counter;
+
+    public Map<String, Double> map;
+
+    JobMetrics() {
+        map = new HashMap<>();
+    }
+
+    @Override
+    public void bindTo(MeterRegistry meterRegistry) {
+         this.job1Counter = Counter.builder("counter_builder_job_counter1")
+                .tags(new String[]{"name", "tag_job_counter1"})
+                .description("description-Job counter1 execute count").register(meterRegistry);
+
+        this.job2Counter = Counter.builder("counter_builder_job_counter2")
+                .tags(new String[]{"name", "tag_job_counter2"})
+                .description("description-Job counter2 execute count ").register(meterRegistry);
+
+        Gauge.builder("gauge_builder_job_gauge", map, x -> x.get("x"))
+                .tags("name", "tag_job_gauge")
+                .description("description-Job gauge")
+                .register(meterRegistry);
+    }
+
+6.定时任务实现counter，gauge数据填充
+@Component
+@EnableScheduling
+public class MyJob {
+
+    private Integer count1 = 0;
+
+    private Integer count2 = 0;
+
+    @Autowired
+    private JobMetrics jobMetrics;
+
+    @Async("main")
+    @Scheduled(fixedDelay = 1000)
+    public void doSomething() {
+        count1++;
+        jobMetrics.job1Counter.increment();
+        jobMetrics.map.put("x", Double.valueOf(count1));
+        System.out.println("task1 count:" + count1);
+        if(count1%2==0){
+            System.out.println("%5==0");
+            jobMetrics.map.put("x", Double.valueOf(1));
+        }
+
+    }
+
+    @Async
+    @Scheduled(fixedDelay = 10000)
+    public void doSomethingOther() {
+        count2++;
+        jobMetrics.job2Counter.increment();
+        System.out.println("task2 count:" + count2);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

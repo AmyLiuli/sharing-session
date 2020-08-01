@@ -1,0 +1,64 @@
+7. Controller 接口方式实现counter，gauge数据填充
+@RestController
+public class CounterController {
+    @Autowired
+    private JobMetrics jobMetrics;
+
+    @RequestMapping(value = "/counter1", method= RequestMethod.GET)
+    public void counter1() {
+        jobMetrics.job2Counter.increment();
+    }
+
+    @RequestMapping(value = "/counter2", method= RequestMethod.GET)
+    public void counter2() {
+        jobMetrics.job2Counter.increment();
+    }
+    @RequestMapping(value = "/gauge", method= RequestMethod.GET)
+    public void gauge(@RequestParam(value = "x") String x) {
+        System.out.println("gauge controller x"+x);
+        jobMetrics.map.put("x",Double.valueOf(x));
+    }
+}
+
+8. prometheus 更改配置文件，接入SpringBoot
+增加如下配置
+#SpringBoot应用配置
+  - job_name: 'springbootPrometheusGrafana' 
+    scrape_interval: 5s
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['192.168.8.1:8080']
+
+第二篇： Grafana
+1.介绍
+1）介绍
+Prometheus 的可视化功能比较弱，这里我们来接入Grafana 。
+
+Grafana是一个跨平台的开源的度量分析和可视化工具，可以通过将采集的数据查询然后可视化的展示，并及时通知。它主要有以下六大特点：
+
+展示方式：快速灵活的客户端图表，面板插件有许多不同方式的可视化指标和日志，官方库中具有丰富的仪表盘插件，比如热图、折线图、图表等多种展示方式；
+
+数据源：Graphite，InfluxDB，OpenTSDB，Prometheus，Elasticsearch，CloudWatch和KairosDB等；
+
+通知提醒：以可视方式定义最重要指标的警报规则，Grafana将不断计算并发送通知，在数据达到阈值时通过Slack、PagerDuty等获得通知；
+
+混合展示：在同一图表中混合使用不同的数据源，可以基于每个查询指定数据源，甚至自定义数据源；
+
+注释：使用来自不同数据源的丰富事件注释图表，将鼠标悬停在事件上会显示完整的事件元数据和标记；
+
+过滤器：Ad-hoc过滤器允许动态创建新的键/值过滤器，这些过滤器会自动应用于使用该数据源的所有查询。
+
+2.安装
+yum localinstall grafana-6.2.1-1.x86_64.rpm
+systemctl start grafana-server
+#设为开机启动
+systemctl enable grafana-server
+ps -ef|grep grafana-server |grep -v grep
+
+3.访问
+配置文件 /etc/grafana/grafana.ini , 默认3000端口，按需修改
+
+
+4.访问 http://192.168.8.101:3000/login
+
+默认的用户名和密码为 admin/admin
